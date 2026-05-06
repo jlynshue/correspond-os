@@ -1,0 +1,24 @@
+{
+  "name": "@correspond-os/web",
+  "version": "0.1.0",
+  "description": "Web dashboard for CorrespondOS — React 19 + Hono",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/server.ts",
+    "build": "bun build src/client/index.tsx --outdir dist/client --minify",
+    "test": "bun test",
+    "test:ci": "bun test --coverage"
+  },
+  "dependencies": {
+    "@correspond-os/core": "workspace:*",
+    "@correspond-os/shared": "workspace:*",
+    "hono": "^4.6.0"
+  },
+  "devDependencies": {
+    "bun-types": "latest",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}
