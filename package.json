@@ -1,0 +1,33 @@
+{
+  "name": "correspond-os",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Open-source multi-channel correspondence triage engine powered by MCP and AI agents",
+  "author": "Jonathan Lyn-Shue <jonathan.lynshue@gmail.com>",
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "bun run --filter '*' build",
+    "test": "bun run --filter '*' test",
+    "test:ci": "bun run --filter '*' test:ci",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "dev": "bun run --filter '@correspond-os/web' dev",
+    "cli": "bun run packages/cli/src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf packages/*/dist node_modules/.cache",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.0",
+    "husky": "^9.0.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "bun": ">=1.1.0"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "@correspond-os/adapters",
+  "version": "0.1.0",
+  "description": "Channel adapters — Gmail, Outlook, HubSpot, LinkedIn, etc.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "bun test",
+    "test:ci": "bun test --coverage"
+  },
+  "dependencies": {
+    "@correspond-os/core": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "bun-types": "latest"
+  }
+}
