@@ -65,6 +65,7 @@
       "name": "@correspond-os/web",
       "version": "0.1.0",
       "dependencies": {
+        "@correspond-os/adapters": "workspace:*",
         "@correspond-os/core": "workspace:*",
         "@correspond-os/shared": "workspace:*",
         "hono": "^4.6.0",

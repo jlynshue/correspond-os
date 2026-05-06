@@ -12,6 +12,7 @@
   "dependencies": {
     "@correspond-os/core": "workspace:*",
     "@correspond-os/shared": "workspace:*",
+    "@correspond-os/adapters": "workspace:*",
     "hono": "^4.6.0"
   },
   "devDependencies": {

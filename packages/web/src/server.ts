@@ -3,27 +3,36 @@ import { cors } from 'hono/cors';
 import { ScoreEngine, Normalizer, Deduplicator } from '@correspond-os/core';
 import type { NormalizedMessage } from '@correspond-os/shared';
 import { APP } from '@correspond-os/shared';
+import { getDemoIngestResult } from './live-ingest.js';
+import * as Store from './store.js';
 
 const app = new Hono();
 app.use('*', cors());
+
+// ─── Initialize persistence on first load ───────────────────────────────────
+let initialized = false;
+function ensureInit() {
+  if (initialized) return;
+  initialized = true;
+  const result = getDemoIngestResult();
+  const runId = Store.saveQueueRun(result.summary.totalIngested, result.summary.afterDedup, {});
+  const allItems = [...result.items.today, ...result.items.tomorrow, ...result.items.thisWeek];
+  Store.saveScoreItems(runId, allItems);
+  Store.logActivity('system', 'Dashboard initialized', `Loaded ${allItems.length} items into persistence`);
+}
 
 // ─── API Routes ─────────────────────────────────────────────────────────────
 
 app.get('/api/health', (c) => c.json({ status: 'ok', app: APP.displayName, version: APP.version, timestamp: new Date().toISOString() }));
 
 app.get('/api/queue', (c) => {
-  const engine = new ScoreEngine();
-  const normalizer = new Normalizer();
-  const dedup = new Deduplicator();
-  const rawItems = getDemoMessages();
-  const { messages } = normalizer.normalizeBatch(rawItems);
-  const deduplicated = dedup.deduplicate(messages);
-  const scored = engine.scoreAll(deduplicated);
-  const today = scored.filter((s) => s.bucket === 'today');
-  const tomorrow = scored.filter((s) => s.bucket === 'tomorrow');
-  const thisWeek = scored.filter((s) => s.bucket === 'this-week');
+  ensureInit();
+  const today = Store.getItemsByBucket('today');
+  const tomorrow = Store.getItemsByBucket('tomorrow');
+  const thisWeek = Store.getItemsByBucket('this-week');
+  const stats = Store.getQueueStats();
   return c.json({
-    summary: { totalIngested: rawItems.length, afterDedup: deduplicated.length, today: today.length, tomorrow: tomorrow.length, thisWeek: thisWeek.length, generatedAt: new Date().toISOString() },
+    summary: { totalIngested: stats.total, afterDedup: stats.total, today: today.length, tomorrow: tomorrow.length, thisWeek: thisWeek.length, generatedAt: new Date().toISOString() },
     items: { today, tomorrow, thisWeek },
   });
 });
@@ -41,37 +50,94 @@ app.get('/api/adapters', (c) => c.json({
   ],
 }));
 
-app.get('/api/activity', (c) => c.json({
-  events: [
-    { time: '14:22', action: 'Scored 38 messages', detail: 'Today: 3, Tomorrow: 5, This Week: 2', type: 'score' },
-    { time: '14:20', action: 'Ingested from Outlook', detail: '12 unread messages', type: 'ingest' },
-    { time: '14:20', action: 'Ingested from Gmail (4 accounts)', detail: '26 unread messages', type: 'ingest' },
-    { time: '14:19', action: 'HubSpot degraded', detail: 'Transport timeout — retry in 60s', type: 'warn' },
-    { time: '14:18', action: 'Deduplicated queue', detail: '38 → 10 unique items', type: 'dedup' },
-    { time: '14:15', action: 'Session started', detail: 'All adapters initialized', type: 'system' },
-    { time: '13:45', action: 'Draft sent: Robert McDonnell', detail: 'Re: Council of Domain Experts', type: 'send' },
-    { time: '13:30', action: 'AT-261 updated in Jira', detail: 'Assigned to Jon, In Progress', type: 'action' },
-  ],
-}));
+app.get('/api/activity', (c) => {
+  ensureInit();
+  const log = Store.getActivityLog(50);
+  return c.json({ events: log.map((e: any) => ({ time: e.timestamp?.split('T')[1]?.substring(0,5) || '', action: e.action, detail: e.detail, type: e.type })) });
+});
+
+// ─── P0-2: Item Detail ──────────────────────────────────────────────────────
+app.get('/api/queue/:id', (c) => {
+  ensureInit();
+  const id = c.req.param('id');
+  const item = Store.getItemById(id);
+  if (!item) return c.json({ error: 'Item not found' }, 404);
+  
+  // Mark as viewed
+  if ((item as any).status === 'unread') {
+    Store.updateItemStatus(id, 'viewed');
+    Store.logActivity('action', `Viewed: ${item.contactName}`, item.subject, id);
+  }
+  
+  const drafts = Store.getDraftsByItemId(id);
+  return c.json({ item, drafts, fullBody: item.bodySnippet || null });
+});
+
+// ─── P0-3: Draft Response ───────────────────────────────────────────────────
+app.post('/api/queue/:id/draft', async (c) => {
+  ensureInit();
+  const id = c.req.param('id');
+  const item = Store.getItemById(id);
+  if (!item) return c.json({ error: 'Item not found' }, 404);
+  
+  const body = await c.req.json();
+  const draftId = Store.saveDraft(id, {
+    subject: body.subject || `Re: ${item.subject}`,
+    body: body.body || '',
+    channel: body.channel || item.channel,
+    templateUsed: body.templateUsed,
+    tone: body.tone || 'professional',
+  });
+  
+  Store.logActivity('action', `Drafted response: ${item.contactName}`, body.subject || item.subject, id);
+  return c.json({ draftId, saved: true });
+});
+
+// ─── P0-4/P0-5: Item Actions (skip, snooze, send, reconnect) ───────────────
+app.post('/api/queue/:id/action', async (c) => {
+  ensureInit();
+  const id = c.req.param('id');
+  const item = Store.getItemById(id);
+  if (!item) return c.json({ error: 'Item not found' }, 404);
+  
+  const { action, snoozeUntil } = await c.req.json();
+  
+  switch (action) {
+    case 'skip':
+      Store.updateItemStatus(id, 'skipped');
+      Store.logActivity('action', `Skipped: ${item.contactName}`, item.subject, id);
+      break;
+    case 'snooze':
+      const until = snoozeUntil || new Date(Date.now() + 86400000).toISOString();
+      Store.updateItemStatus(id, 'snoozed', until);
+      Store.logActivity('action', `Snoozed: ${item.contactName}`, `Until ${until.split('T')[0]}`, id);
+      break;
+    case 'send':
+      Store.updateItemStatus(id, 'sent');
+      Store.logActivity('send', `Sent response: ${item.contactName}`, item.subject, id);
+      break;
+    default:
+      return c.json({ error: `Unknown action: ${action}` }, 400);
+  }
+  
+  return c.json({ success: true, newStatus: action === 'snooze' ? 'snoozed' : action === 'skip' ? 'skipped' : 'sent' });
+});
+
+app.post('/api/adapters/:name/reconnect', async (c) => {
+  const name = c.req.param('name');
+  Store.logActivity('system', `Reconnect requested: ${name}`, 'Health check triggered');
+  // In production, this would call adapter.healthCheck()
+  return c.json({ adapter: name, previousStatus: 'unavailable', newStatus: 'healthy', latencyMs: 45 });
+});
+
+// ─── P0-7: Queue Stats ──────────────────────────────────────────────────────
+app.get('/api/stats', (c) => {
+  ensureInit();
+  const stats = Store.getQueueStats();
+  return c.json(stats);
+});
 
 app.get('/', (c) => c.html(getIndexHtml()));
-
-// ─── Demo Data ──────────────────────────────────────────────────────────────
-
-function getDemoMessages(): Array<Partial<NormalizedMessage> & { source: string; subject: string }> {
-  return [
-    { source: 'outlook', contactName: 'Robert McDonnell', contactEmail: 'robert@anubatechnologies.com', subject: 'Council of Domain Experts Review', timestamp: new Date(), urgencySignals: ['high-importance'], relationshipTier: 'internal' },
-    { source: 'gmail', contactName: 'Leon Davoyan', contactEmail: 'leon@dhc.com', subject: 'Re: Partnership Proposal', timestamp: new Date(Date.now() - 2*86400000), hubspotDealId: 'deal-dhc-001', metadata: { dealStage: 'negotiation' }, urgencySignals: ['stale-deal'], relationshipTier: 'opportunity' },
-    { source: 'linkedin', contactName: 'Sarah Chen', subject: 'Interested in Anuba platform', timestamp: new Date(Date.now() - 86400000), urgencySignals: ['unread-dm'], relationshipTier: 'lead' },
-    { source: 'github', contactName: 'GitHub Actions', contactEmail: 'noreply@github.com', subject: 'anuba-crm Integration Tests FAILED', timestamp: new Date(), urgencySignals: ['ci-failure'], relationshipTier: 'unknown' },
-    { source: 'hubspot', contactName: 'Hamed Farsani', contactEmail: 'hamed@hfblabs.com', subject: 'Follow up on HFBLabs proposal', timestamp: new Date(Date.now() - 4*86400000), hubspotDealId: 'deal-hfb-002', metadata: { dealStage: 'proposal' }, urgencySignals: ['stale-deal'], relationshipTier: 'opportunity' },
-    { source: 'confluence', contactName: 'Mithun Konduri', contactEmail: 'mithun@anubatechnologies.com', subject: 'Mentioned you in Sprint Planning', timestamp: new Date(Date.now() - 3*86400000), relationshipTier: 'internal' },
-    { source: 'gmail', contactName: 'Taryn Faliszewski', contactEmail: 'taryn@google.com', subject: 'Google Cloud Trial — Personal Tour', timestamp: new Date(Date.now() - 6*86400000), relationshipTier: 'lead' },
-    { source: 'outlook', contactName: 'Dave Mathews', contactEmail: 'dave@anubatechnologies.com', subject: 'Re: Anuba Weekly GTM Meeting', timestamp: new Date(Date.now() - 0.5*86400000), relationshipTier: 'internal' },
-    { source: 'github', contactName: 'Dependabot', contactEmail: 'noreply@github.com', subject: 'PAT winsurf-anuba expiring in 7 days', timestamp: new Date(), urgencySignals: ['token-expiring'], relationshipTier: 'unknown' },
-    { source: 'gmail', contactName: 'OpenAI', contactEmail: 'noreply@openai.com', subject: 'Security update for macOS apps', timestamp: new Date(Date.now() - 86400000), urgencySignals: ['deadline-today'], relationshipTier: 'unknown' },
-  ];
-}
 
 // ─── Dashboard HTML ─────────────────────────────────────────────────────────
 
