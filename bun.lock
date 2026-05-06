@@ -23,10 +23,11 @@
       },
     },
     "packages/cli": {
-      "name": "@correspond-os/cli",
+      "name": "correspond-os",
       "version": "0.1.0",
       "bin": {
         "correspond": "./src/index.ts",
+        "correspond-os": "./src/index.ts",
       },
       "dependencies": {
         "@correspond-os/core": "workspace:*",
@@ -98,8 +99,6 @@
 
     "@correspond-os/adapters": ["@correspond-os/adapters@workspace:packages/adapters"],
 
-    "@correspond-os/cli": ["@correspond-os/cli@workspace:packages/cli"],
-
     "@correspond-os/core": ["@correspond-os/core@workspace:packages/core"],
 
     "@correspond-os/shared": ["@correspond-os/shared@workspace:packages/shared"],
@@ -123,6 +122,8 @@
     "cli-spinners": ["cli-spinners@2.9.2", "", {}, "sha512-ywqV+5MmyL4E7ybXgKys4DugZbX0FC6LnwrhjuykIjnK9k8OQacQ7axGKnjDXWNhns0xot3bZI5h55H8yo9cJg=="],
 
     "commander": ["commander@12.1.0", "", {}, "sha512-Vw8qHK3bZM9y/P10u3Vib8o/DdkvA2OtPtZvD871QKjy74Wj1WSKFILMPRPSdUSx5RFK1arlJzEtA4PkFgnbuA=="],
+
+    "correspond-os": ["correspond-os@workspace:packages/cli"],
 
     "csstype": ["csstype@3.2.3", "", {}, "sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ=="],
 

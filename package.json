@@ -1,5 +1,5 @@
 {
-  "name": "correspond-os",
+  "name": "correspond-os-monorepo",
   "version": "0.1.0",
   "private": true,
   "description": "Open-source multi-channel correspondence triage engine powered by MCP and AI agents",
@@ -16,11 +16,18 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
-    "dev": "bun run --filter '@correspond-os/web' dev",
+    "dev": "bun run packages/web/src/server.ts",
+    "dev:web": "bun run packages/web/src/server.ts",
     "cli": "bun run packages/cli/src/index.ts",
+    "triage": "bun run packages/cli/src/index.ts triage",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf packages/*/dist node_modules/.cache",
-    "prepare": "husky"
+    "harness": "bun run packages/core/src/harness/validate.ts",
+    "harness:report": "bun run packages/core/src/harness/report.ts",
+    "prepare": "husky",
+    "publish:cli": "cd packages/cli && npm publish",
+    "publish:core": "cd packages/core && npm publish",
+    "publish:shared": "cd packages/shared && npm publish"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.0",

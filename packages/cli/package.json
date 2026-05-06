@@ -1,10 +1,32 @@
 {
-  "name": "@correspond-os/cli",
+  "name": "correspond-os",
   "version": "0.1.0",
-  "description": "CLI interface for CorrespondOS",
+  "description": "Multi-channel correspondence triage engine — ingest, deduplicate, score, and draft responses",
   "type": "module",
   "bin": {
-    "correspond": "./src/index.ts"
+    "correspond": "./src/index.ts",
+    "correspond-os": "./src/index.ts"
+  },
+  "keywords": [
+    "correspondence",
+    "triage",
+    "email",
+    "mcp",
+    "ai-agent",
+    "productivity",
+    "scoring",
+    "multi-channel"
+  ],
+  "author": "Jonathan Lyn-Shue <jonathan.lynshue@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jlynshue/correspond-os.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/jlynshue/correspond-os#readme",
+  "bugs": {
+    "url": "https://github.com/jlynshue/correspond-os/issues"
   },
   "scripts": {
     "build": "tsc",
@@ -21,5 +43,11 @@
   },
   "devDependencies": {
     "bun-types": "latest"
+  },
+  "engines": {
+    "bun": ">=1.1.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

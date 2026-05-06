@@ -1,7 +1,7 @@
 {
   "name": "@correspond-os/shared",
   "version": "0.1.0",
-  "description": "Shared types, utilities, and constants",
+  "description": "Shared types, schemas, and utilities for CorrespondOS",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
@@ -21,5 +21,14 @@
   },
   "devDependencies": {
     "bun-types": "latest"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jlynshue/correspond-os.git",
+    "directory": "packages/shared"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
